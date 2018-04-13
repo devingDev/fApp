@@ -1,1 +1,2 @@
-# fApp the best app for your PSVita!
+# fApp
+the best app for your psvita
