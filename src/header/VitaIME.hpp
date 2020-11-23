@@ -21,7 +21,7 @@ class VitaIME{
 	public: 
 		VitaIME();
 		std::string getUserText(char title[]);
-		std::string getUserText(char title[], char showtext[]);
+		std::string getUserText(const char* title, const char* showtext);
 		int checkArray(char string[] , int length);
 		
 	private:

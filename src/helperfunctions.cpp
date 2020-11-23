@@ -118,7 +118,7 @@ bool isDir(std::string const& fullPath){
 	SceIoStat fstat;
 	sceIoGetstat(fullPath.c_str() , &fstat);
 	
-	return SCE_SO_ISDIR( fstat.st_mode );
+	return SCE_STM_ISDIR( fstat.st_mode );
 	
 }
 

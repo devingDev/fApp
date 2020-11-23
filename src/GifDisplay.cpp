@@ -1,6 +1,6 @@
 #include "header/GifDisplay.hpp"
 #include <psp2/kernel/processmgr.h>
-#include <psp2/io/fcntl.h>
+#include <psp2/kernel/iofilemgr.h>
 #include <malloc.h> 
 #include <cstring>
 #include <chrono>
@@ -29,11 +29,9 @@ void GifDisplay::ShowImage(std::string filename , vita2d_texture * texture){
 void GifDisplay::UnshowCurrentImage(){
 	currentFilename = "";
 	isShown = false;
-	debugNetPrintf(DEBUG , "Waiting for exit\r\n");
 	while(threadExited == false){
 		sceKernelDelayThread(1000);
 	}
-	debugNetPrintf(DEBUG , "Exited ! \r\n");
 	//myGifVita2D = NULL;
 }
 
@@ -83,7 +81,7 @@ void GifDisplay::LoadAnimationGif(){
 	unsigned int stride = vita2d_texture_get_stride(myGifVita2D);
 	//debugNetPrintf(DEBUG , "Stride is : %u \r\n" , stride);
 	//debugNetPrintf(DEBUG , "Getting texture datap \r\n");
-	unsigned char *texp = vita2d_texture_get_datap(myGifVita2D);
+	unsigned char *texp = (unsigned char *)vita2d_texture_get_datap(myGifVita2D);
 	unsigned char *gifp = NULL ;
 	GifColorType * gifPalette;
 	bool hasGlobalPalette = false;
@@ -139,7 +137,6 @@ void GifDisplay::LoadAnimationGif(){
 			DGifSavedExtensionToGCB(myGif , i , &myGifGCBlock);
 			gettimeofday(&t2, NULL);
 			elapsedTime = (t2.tv_usec - t1.tv_usec);
-			debugNetPrintf(DEBUG , "T1 DGifSavedExtensionToGCB Elapsed time : %f!\r\n" , elapsedTime);
 			//if(currentSImage.ExtensionBlocks->ByteCount == 4){
 			gettimeofday(&t1, NULL);
 			SavedImage currentSImage = myGif->SavedImages[i];
@@ -164,7 +161,6 @@ void GifDisplay::LoadAnimationGif(){
 				CurrentDisposalMode = myGifGCBlock.DisposalMode;
 			gettimeofday(&t2, NULL);
 			elapsedTime = (t2.tv_usec - t1.tv_usec);
-			debugNetPrintf(DEBUG , "T2 Stuff Elapsed time : %f!\r\n" , elapsedTime);
 				
 				
 				
@@ -174,7 +170,6 @@ void GifDisplay::LoadAnimationGif(){
 					memcpy(gifRGBA8LastUndisposed , gifRGBA8 , myGif->SWidth * myGif->SHeight * 4);
 					gettimeofday(&t2, NULL);
 					elapsedTime = (t2.tv_usec - t1.tv_usec);
-					debugNetPrintf(DEBUG , "T3 memcpy to lastundisposed Elapsed time : %f!\r\n" , elapsedTime);
 				}
 				
 				////debugNetPrintf(INFO , "Looping for palette\r\n");
@@ -235,7 +230,6 @@ void GifDisplay::LoadAnimationGif(){
 				
 			gettimeofday(&t2, NULL);
 			elapsedTime = (t2.tv_usec - t1.tv_usec);
-			debugNetPrintf(DEBUG , "T4 Palette to color array Elapsed time : %f!\r\n" , elapsedTime);
 				
 				
 				//int j = 0;
@@ -267,7 +261,6 @@ void GifDisplay::LoadAnimationGif(){
 				}
 			gettimeofday(&t2, NULL);
 			elapsedTime = (t2.tv_usec - t1.tv_usec);
-			debugNetPrintf(DEBUG , "T5 Memcpy to vita2d texture Elapsed time : %f!\r\n" , elapsedTime);
 				
 				//delay = GIF_WAIT_TIME_BASE_MULTIPLIER * delay - (unsigned int)elapsedTime;
 				delay = GIF_WAIT_TIME_BASE_MULTIPLIER * delay;
@@ -298,7 +291,6 @@ void GifDisplay::LoadAnimationGif(){
 				
 				end = std::chrono::system_clock::now();
 				delayTimeReduction = std::chrono::duration_cast<std::chrono::microseconds>(end-start).count();
-				debugNetPrintf(DEBUG , "TIME TO DISPLAY NOW : %f \r\n" , delay - delayTimeReduction);
 				if(delayTimeReduction >= delay){
 					
 				}else{
@@ -361,7 +353,6 @@ void GifDisplay::LoadAnimationGif(){
 				}
 			gettimeofday(&t2, NULL);
 			elapsedTime = (t2.tv_usec - t1.tv_usec);
-			debugNetPrintf(DEBUG , "T6 Switch for Disposal mode Elapsed time : %f!\r\n" , elapsedTime);
 			//gettimeofday(&tDelay1, NULL);
 			//clock_gettime( CLOCK_MONOTONIC, &begin );
 			start = std::chrono::system_clock::now();
@@ -372,7 +363,6 @@ void GifDisplay::LoadAnimationGif(){
 	delete[] gifRGBA8LastUndisposed;
 	delete[] gifRGBA8;
 	DGifCloseFile(myGif , &ErrorCode);
-	debugNetPrintf(DEBUG , "Closed gif file, return code : %d!\r\n" , ErrorCode);
 	threadExited = true;
 }
 static int GifAnimationThread(unsigned int args, void* argp){
@@ -384,5 +374,5 @@ static int GifAnimationThread(unsigned int args, void* argp){
 	GifDisplay::GifThreadHelper * gifThreadHelper = (GifDisplay::GifThreadHelper*)argp;
 	
 	gifThreadHelper->gifDisplay->LoadAnimationGif();
-	
+	return 0;
 }

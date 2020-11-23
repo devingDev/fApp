@@ -9,7 +9,7 @@
 #include <psp2/net/netctl.h>
 #include <psp2/net/http.h>
 
-#include <psp2/io/fcntl.h>
+#include <psp2/kernel/iofilemgr.h>
 
 #include <stdio.h>
 #include <malloc.h> 
@@ -158,34 +158,11 @@ unsigned long downloadString(const char *url , char * dest) {
 	//debugNetPrintf(INFO,"0x%08X sceHttpSendRequest\n", handle);
 	
 	if(handle < 0){
-		debugNetPrintf(ERROR,"Fail in downloadString %s . ERROR CODE : 0x%08X sceHttpSendRequest  \r\n", url, handle);
 		return 0;
 	}
 
 	unsigned long read = 0;
 	read = sceHttpReadData(request, dest, MAX_IMAGE_SIZE );
-	//dest[read+1] = 0;
-	
-	// open destination file
-	//////int fh = sceIoOpen(dest, SCE_O_WRONLY | SCE_O_CREAT, 0777);
-	//////psvDebugScreenPrintf("0x%08X sceIoOpen\n", fh);
-    //////
-	//////// create buffer and counter for read bytes.
-	//////unsigned char data[16*1024];
-	//////int read = 0;
-    //////
-	//////// read data until finished
-	//////while ((read = sceHttpReadData(request, &data, sizeof(data))) > 0) {
-	//////	psvDebugScreenPrintf("read %d bytes\n", read);
-    //////
-	//////	// writing the count of read bytes from the data buffer to the file
-	//////	int write = sceIoWrite(fh, data, read);
-	//////	psvDebugScreenPrintf("wrote %d bytes\n", write);
-	//////}
-    //////
-	//////// close file
-	//////sceIoClose(fh);
-	//////psvDebugScreenPrintf("sceIoClose\n");
 	
 	sceHttpDeleteRequest (request);
 	sceHttpDeleteConnection (conn);
@@ -195,39 +172,10 @@ unsigned long downloadString(const char *url , char * dest) {
 }
 bool LoadNewPage(const char * url) {
 
-	//int fileHandle = sceIoOpen("app0:assets/demo.xml", SCE_O_RDONLY, 0777);
-	//psvDebugScreenPrintf("filehandle : %d \n " , fileHandle);
-	//sceKernelDelayThread(2 * 1000 * 1000);
-	//	SceIoStat uploadFileStat;
-	//	sceIoGetstatByFd (fileHandle, &uploadFileStat);
-	//psvDebugScreenPrintf("getting filesize\n\n");
-	//long fileSize = sceIoLseek(fileHandle, 0 , SCE_SEEK_END);
-	//psvDebugScreenPrintf("filesize : %ld\n\n" , fileSize);
-	//psvDebugScreenPrintf("seeking back\n\n");
-	//sceIoLseek(fileHandle, 0 , SCE_SEEK_SET);
-	//
-	//
-	//psvDebugScreenPrintf("calling new char\n\n");
-	//lastSiteRequestContent = new char[fileSize + 1]; // 'new' crashes ..
-	////lastSiteRequestContent = (char*)malloc( sizeof(char) * ( fileSize + 1 ) ); //new char[fileSize + 1]; // 'new' crashes ..
-	//psvDebugScreenPrintf("sceIoReading\n\n");
-	//sceIoRead(fileHandle, lastSiteRequestContent, fileSize);
-	//psvDebugScreenPrintf("null terminating\n\n");
-	//lastSiteRequestContent[fileSize] = 0;
-	//psvDebugScreenPrintf("sceioclose\n\n");
-	//sceIoClose(fileHandle);
-	//
-	//psvDebugScreenPrintf("r3 contn\n\n");
-	////lastSiteRequestContent = std::string(buffer.str());
-	//psvDebugScreenPrintf("%s\n\n" , lastSiteRequestContent);
-	//sceKernelDelayThread(2 * 1000 * 1000);
-	
-	//char * lastSiteRequestContent = new char[MAX_XML_SIZE + 1];
 	memset(lastSiteRequestContent, 0, sizeof(char)*(MAX_XML_SIZE + 1));
 	Logger::Info("Calling download\r\n");
 	unsigned long downloadedBytes = downloadString(url , lastSiteRequestContent);
 	lastSiteRequestContent[downloadedBytes] = 0;
-	debugNetPrintf(INFO,"Got data : %s\r\n"  , lastSiteRequestContent);
 	
 	if(downloadedBytes > 16){ // some random value to check against if json or xml has actually data in it
 		int hand = sceIoOpen("ux0:data/fApp/dbgxml.txt", SCE_O_WRONLY | SCE_O_CREAT, 0777);
@@ -281,7 +229,7 @@ void ParseDanbooruJson(char * jsonData){
 					
 					if(strncmp(file_tmp_url.c_str() , httpsString.c_str() , httpsString.length()) == 0){
 						fileUrl = file_tmp_url;
-					debugNetPrintf(ERROR , " file_url contained 'https://'  : %s \r\n\r\n " , danbooruJSON[i]["file_url"].get<std::string>().c_str());
+						
 					}else{
 						fileUrl = "https://danbooru.donmai.us" + file_tmp_url;
 					}
@@ -370,8 +318,8 @@ static int StartDownloadPreviewThread(unsigned int args, void* argp){
 		int currentIndex = loadedTimes;
 		loadedTimes++;
 		for (int i = 0; i < rule34XXXPages.at(currentIndex).images.size(); i++) {
-			debugNetPrintf(INFO,"%d : %s\n", i , rule34XXXPages.at(currentIndex).images.at(i).previewurl.c_str() );
-			debugNetPrintf(DEBUG, "Checking for emptry threads ( current running : %d ) \r\n" , userInterface->threadsRunning);
+			
+			
 			int timeoutInMicroSeconds = 5 * 1000 * 1000;
 			while(userInterface->threadsRunning >= MAX_DOWNLOAD_THREADS && timeoutInMicroSeconds > 0){	
 				sceKernelDelayThread(100*1000);
@@ -418,7 +366,6 @@ void StartDownloadPreviews(std::string url){
 	dlHelper.dataDest = lastSiteRequestContent;
 	sceKernelUnlockMutex ( lockDownloadThread, 1 );
 	SceUID threadID = sceKernelCreateThread ("dlthread", &StartDownloadPreviewThread, 0x40, 1024*1024, 0 , 0 , NULL);
-	debugNetPrintf(DEBUG, "Start thread\r\n");
 	sceKernelStartThread	(	threadID, 0, NULL );	
 }
 

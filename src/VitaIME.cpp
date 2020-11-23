@@ -126,7 +126,7 @@ std::string VitaIME::getUserText(char title[] ){
 
 
 
-std::string VitaIME::getUserText(char title[] , char showtext[]) {
+std::string VitaIME::getUserText(const char* title, const char* showtext) {
     bool shown_dial = false;
    
     char userText[512];

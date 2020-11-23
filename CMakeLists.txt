@@ -1,16 +1,16 @@
 cmake_minimum_required(VERSION 2.8)
 
 if(NOT DEFINED CMAKE_TOOLCHAIN_FILE)
-  if(DEFINED ENV{VITASDK})
-    set(CMAKE_TOOLCHAIN_FILE "$ENV{VITASDK}/share/vita.toolchain.cmake" CACHE PATH "toolchain file")
+  if(DEFINED ENV{DOLCESDK})
+    set(CMAKE_TOOLCHAIN_FILE "$ENV{DOLCESDK}/share/dolce.toolchain.cmake" CACHE PATH "toolchain file")
   else()
-    message(FATAL_ERROR "Please define VITASDK to point to your SDK path!")
+    message(FATAL_ERROR "Please define DOLCESDK to point to your SDK path!")
   endif()
 endif()
 
 set(SHORT_NAME fApp)
 project(${SHORT_NAME})
-include("${VITASDK}/share/vita.cmake" REQUIRED)
+include("${DOLCESDK}/share/dolce.cmake" REQUIRED)
 
 set(VITA_APP_NAME "fApp")
 set(VITA_TITLEID  "FAPPENING")
@@ -22,7 +22,7 @@ include_directories(
   ../common
 )
 
-add_executable(${SHORT_NAME}
+add_executable(${SHORT_NAME}.elf
   src/giflib/dgif_lib.c
   src/giflib/egif_lib.c
   src/giflib/gif_err.c
@@ -42,7 +42,7 @@ add_executable(${SHORT_NAME}
   src/Logger.cpp
 )
 
-target_link_libraries(${SHORT_NAME}
+target_link_libraries(${SHORT_NAME}.elf
   vita2d
   SceDisplay_stub
   SceGxm_stub
@@ -57,8 +57,12 @@ target_link_libraries(${SHORT_NAME}
   z
   m
   c
-  debugnet
+  #debugnet
+  SceGxmInternalForVsh_stub
+  SceSharedFb_stub
   SceCtrl_stub
+  SceAppMgrUser_stub
+  SceDisplayUser_stub
   SceSysmodule_stub
   SceNet_stub
   SceNetCtl_stub
@@ -70,8 +74,8 @@ target_link_libraries(${SHORT_NAME}
   
 )
 
-vita_create_self(${SHORT_NAME}.self ${SHORT_NAME})
-vita_create_vpk(${SHORT_NAME}.vpk ${VITA_TITLEID} ${SHORT_NAME}.self
+dolce_create_self(eboot.bin ${SHORT_NAME}.elf)
+dolce_create_vpk(${SHORT_NAME}.vpk ${VITA_TITLEID} eboot.bin
   VERSION ${VITA_VERSION}
   NAME ${VITA_APP_NAME}
   FILE sce_sys/pic0.png sce_sys/pic0.png

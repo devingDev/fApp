@@ -35,14 +35,9 @@ struct AddImageThreadHelper{
 	UserInterface * ui;
 };
 static int StartAddPreviewImageThread(unsigned int args, void* argp){
-	//AddImageEntryHelper * aiP = (AddImageEntryHelper*)argp;
-	//aiP->ui->ThreadAddPreviewImage(aiP->iE);
-	
-	debugNetPrintf(DEBUG, "In StartAddPreviewImageThread\r\n");
 	AddImageThreadHelper * ait = (AddImageThreadHelper*)argp;
-	debugNetPrintf(DEBUG, "Passing threadindex to threaddd : %d \r\n" , ait->threadIndex);
 	ait->ui->ThreadAddPreviewImage( ait->threadIndex);
-	
+	return 0;
 }
 
 bool Check_ext(const std::string& filename)
@@ -77,22 +72,11 @@ void UserInterface::AddPreviewImage(std::string pUrl , int pWidth , int pHeight 
 	iE.previewImageLoaded  = false;
 	iE.fullImageMD5 = fullImageMD5S;
 	iE.isAnimatedGif = Check_ext(surl);
-	debugNetPrintf(DEBUG, "In AddPreviewImage,       pUrl now : %s \r\n", pUrl.c_str());
-	debugNetPrintf(DEBUG, "In AddPreviewImage,    ie.pUrl now : %s \r\n", iE.previewurl.c_str());
-	
-	
-	
-	//AddImageEntryHelper aiHelper;
-	//aiHelper.ui = this;
-	//aiHelper.iE = iE;
-	//debugNetPrintf(DEBUG, "In AddPreviewImage, ai.ie.pUrl now : %s \r\n", aiHelper.iE.previewurl.c_str());
 	
 	AddImageThreadHelper ait;
 	ait.ui = this;
-	
 
-	
-	debugNetPrintf(DEBUG, "Lock mutex threads\r\n");
+
 	sceKernelLockMutex(imageEntriesLock , 1  , NULL );
 	int threadIndex = 0;
 	for(int i = 0 ; i < MAX_DOWNLOAD_THREADS ; i++){
@@ -107,15 +91,11 @@ void UserInterface::AddPreviewImage(std::string pUrl , int pWidth , int pHeight 
 	threadsRunning++;
 	sceKernelUnlockMutex ( changeIntThreadsRunningLock, 1 );
 	
-	debugNetPrintf(DEBUG, "Found thread helper empty at %d \r\n" , threadIndex);
 	threadEntriesHelper[threadIndex].inUse = true;
-	debugNetPrintf(DEBUG, "Set iE\r\n");
 	threadEntriesHelper[threadIndex].iE = iE;
 	sceKernelUnlockMutex ( imageEntriesLock, 1 );
 	ait.threadIndex = threadIndex;
-	debugNetPrintf(DEBUG, "create thread\r\n");
 	SceUID threadID = sceKernelCreateThread ("dlthread", &StartAddPreviewImageThread, 0x40, 1024*1024, 0 , 0 , NULL);
-	debugNetPrintf(DEBUG, "Start thread id : %d \r\n" , threadID);
 	sceKernelStartThread	(	threadID, sizeof(ait), &ait );	
 	
 }
@@ -124,29 +104,23 @@ int UserInterface::ThreadAddPreviewImage(int threadIndex){
 	if(threadIndex >= MAX_DOWNLOAD_THREADS || threadIndex < 0){
 		sceKernelLockMutex(changeIntThreadsRunningLock , 1  , NULL );
 		threadsRunning--;
-		debugNetPrintf(ERROR, "Remaining threads : %d \r\n" , threadsRunning);
 		sceKernelUnlockMutex ( changeIntThreadsRunningLock, 1 );
 		return -1;
 	}
 	
 	char * imageData;
-	debugNetPrintf(DEBUG, "assign iE th\r\n");
 	
 	
 	ImageEntry iE;
 	sceKernelLockMutex(changeIntThreadsRunningLock , 1  , NULL );
 	iE = threadEntriesHelper[threadIndex].iE;
 	sceKernelUnlockMutex ( changeIntThreadsRunningLock, 1 );
-	debugNetPrintf(DEBUG, "lock mutext th\r\n");
 	sceKernelLockMutex(allocateDataImageLock , 1  , NULL );
-	debugNetPrintf(DEBUG, "In ThreadAddPreviewImage, threadsRunning now : %d \r\n", threadsRunning);
-	debugNetPrintf(DEBUG, "In ThreadAddPreviewImage, currentURL now : %s \r\n", iE.previewurl.c_str());
 	imageData  = new char[MAX_THUMBNAIL_SIZE  +  1];
 	//memset(imageData, 0, sizeof(char)*(MAX_THUMBNAIL_SIZE + 1));
 	sceKernelUnlockMutex ( allocateDataImageLock, 1 );
 	
 	
-	debugNetPrintf(DEBUG, "Downloading image T: %d \r\n", threadIndex);
 	unsigned long bytesDownloaded;
 
 	std::string fileSaveName = "ux0:data/fApp/thumbnails/" + iE.fullImageMD5 + ".png";
@@ -192,9 +166,7 @@ int UserInterface::ThreadAddPreviewImage(int threadIndex){
 	}
 	
 	if(fileExist){
-		debugNetPrintf(DEBUG, "File found : %s \r\n " , fileSaveName.c_str());
 		int fileHandle = sceIoOpen(fileSaveName.c_str() , SCE_O_RDONLY, 0777);
-		debugNetPrintf(DEBUG, "File handle : %d \r\n " , fileHandle);
 
 		long fileSize = sceIoLseek(fileHandle, 0 , SCE_SEEK_END);
 		sceIoLseek(fileHandle, 0 , SCE_SEEK_SET);
@@ -205,11 +177,9 @@ int UserInterface::ThreadAddPreviewImage(int threadIndex){
 		
 		bytesDownloaded = fileSize;
 	}else{
-		debugNetPrintf(DEBUG, "File NOT found : %s \r\n " , fileSaveName.c_str());
 		bytesDownloaded = downloadImage(iE.previewurl.c_str() , imageData);
 		fileSaveName = "ux0:data/fApp/debugthumbnails/" + iE.fullImageMD5 ;
 		
-			debugNetPrintf(DEBUG, "Writing debug preview to file ! \r\n ");
 			SceUID fileHandle = sceIoOpen(fileSaveName.c_str(), SCE_O_WRONLY|SCE_O_CREAT, 0777);
 			sceIoWrite(fileHandle , imageData , bytesDownloaded); 
 			sceIoClose(fileHandle);
@@ -218,11 +188,7 @@ int UserInterface::ThreadAddPreviewImage(int threadIndex){
 	
 	
 				
-	
-	debugNetPrintf(DEBUG, "Parsing image T: %d \r\n", threadIndex);
-	debugNetPrintf(DEBUG, "Image bytes: %d \r\n", bytesDownloaded);
 	if(bytesDownloaded <= 0){
-		debugNetPrintf(DEBUG, "Failed ! preview bytesDownloaded <= 0 \r\n ");
 		iE.previewImage = NULL;
 		iE.previewImageLoaded = false;
 		iE.previewImageBytes = 0;
@@ -237,7 +203,6 @@ int UserInterface::ThreadAddPreviewImage(int threadIndex){
 		if( imageData[0] == (char)0x42 ){
 			if( imageData[1] == 0x4D ){
 				sceKernelLockMutex(vita2dLoadImageLock , 1  , NULL );
-				debugNetPrintf(DEBUG, "Loading image to vita2d_texture bmp \r\n ");
 				iE.previewImage = vita2d_load_BMP_buffer( imageData );
 				sceKernelUnlockMutex ( vita2dLoadImageLock, 1 );
 				if( iE.previewImage != NULL){
@@ -255,7 +220,6 @@ int UserInterface::ThreadAddPreviewImage(int threadIndex){
 								if ( imageData[6] == 0x1A ){
 									if ( imageData[7] == 0x0A ){
 										sceKernelLockMutex(vita2dLoadImageLock , 1  , NULL );
-										debugNetPrintf(DEBUG, "Loading image to vita2d_texture png \r\n ");
 										iE.previewImage = vita2d_load_PNG_buffer( imageData );
 										sceKernelUnlockMutex ( vita2dLoadImageLock, 1 );
 										if( iE.previewImage != NULL){
@@ -277,12 +241,10 @@ int UserInterface::ThreadAddPreviewImage(int threadIndex){
 						if(imageData[4] == (char)0x37){
 							if(imageData[5] == (char)0x61){
 								isgif87a = true;
-								debugNetPrintf(DEBUG, "image is gif87a \r\n ");
 								
 							}
 						}else if(imageData[4] == (char)0x39){
 							if(imageData[5] == (char)0x61){
-								debugNetPrintf(DEBUG, "image is gif98a \r\n ");
 								isgif89a = true;
 							}
 						}
@@ -297,9 +259,7 @@ int UserInterface::ThreadAddPreviewImage(int threadIndex){
 					if( imageData[3] == 0xD8 ){
 						// ÿØÿÛ
 						sceKernelLockMutex(vita2dLoadImageLock , 1  , NULL );
-						debugNetPrintf(DEBUG, "Loading image to vita2d_texture jpg 1 \r\n ");
 						iE.previewImage = vita2d_load_JPEG_buffer( imageData , bytesDownloaded);
-						debugNetPrintf(DEBUG, "Loaded image to vita2d_texture jpg 1 \r\n ");
 						sceKernelUnlockMutex ( vita2dLoadImageLock, 1 );
 						if( iE.previewImage != NULL){
 							iE.previewImageLoaded = true;
@@ -316,9 +276,7 @@ int UserInterface::ThreadAddPreviewImage(int threadIndex){
 											if( imageData[11] == 0x01 ){
 												//ÿØÿà ..JFIF..
 												sceKernelLockMutex(vita2dLoadImageLock , 1  , NULL );
-												debugNetPrintf(DEBUG, "Loading image to vita2d_texture jpg 2 \r\n ");
 												iE.previewImage = vita2d_load_JPEG_buffer( imageData , bytesDownloaded );
-												debugNetPrintf(DEBUG, "Loaded image to vita2d_texture jpg 2 \r\n ");
 												sceKernelUnlockMutex ( vita2dLoadImageLock, 1 );
 												if( iE.previewImage != NULL){
 													iE.previewImageLoaded = true;
@@ -341,9 +299,7 @@ int UserInterface::ThreadAddPreviewImage(int threadIndex){
 											if( imageData[11] == 0x00 ){
 												//ÿØÿá ..Exif..
 												sceKernelLockMutex(vita2dLoadImageLock , 1  , NULL );
-												debugNetPrintf(DEBUG, "Loading image to vita2d_texture jpg 3 \r\n ");
 												iE.previewImage = vita2d_load_JPEG_buffer( imageData , bytesDownloaded);
-												debugNetPrintf(DEBUG, "Loaded image to vita2d_texture jpg 3 \r\n ");
 												sceKernelUnlockMutex ( vita2dLoadImageLock, 1 );
 												if( iE.previewImage != NULL){
 													iE.previewImageLoaded = true;
@@ -363,29 +319,21 @@ int UserInterface::ThreadAddPreviewImage(int threadIndex){
 
 			}
 		}
-		debugNetPrintf(DEBUG, "About to save preview to file ! \r\n ");
 				fileSaveName = "ux0:data/fApp/thumbnails/" + iE.fullImageMD5 ;
 				if(ispng){
-					debugNetPrintf(DEBUG, "is png \r\n");
 					fileSaveName += ".png";
 				}else if(isbmp){
-					debugNetPrintf(DEBUG, "is bmp \r\n");
 					fileSaveName += ".bmp";
 				}else if(isjpg){
-					debugNetPrintf(DEBUG, "is jpeg \r\n");
 					fileSaveName += ".jpeg";
 				}else if(isgif87a){
-					debugNetPrintf(DEBUG, "is gif87a \r\n");
 					fileSaveName += ".gif";
 				}else if(isgif89a){
-					debugNetPrintf(DEBUG, "is gif89a \r\n");
 					fileSaveName += ".gif";
 				}else{
 					fileSaveName += ".unk";
-					debugNetPrintf(DEBUG, "is unknown \r\n");
 				}
 				if(!fileExist && iE.previewImageLoaded){
-					debugNetPrintf(DEBUG, "Writing preview to file ! \r\n ");
 					SceUID fileHandle = sceIoOpen(fileSaveName.c_str(), SCE_O_WRONLY|SCE_O_CREAT, 0777);
 					sceIoWrite(fileHandle , imageData , bytesDownloaded); 
 					sceIoClose(fileHandle);
@@ -395,9 +343,7 @@ int UserInterface::ThreadAddPreviewImage(int threadIndex){
 	
 	
 	
-	debugNetPrintf(DEBUG, "Lock entries mutex T: %d \r\n", threadIndex);
 	sceKernelLockMutex(imageEntriesLock , 1  , NULL );
-	debugNetPrintf(DEBUG, "Appending entries image T: %d \r\n", threadIndex);
 	if(iE.previewImageLoaded){
 		
 		if(iE.previewImage != NULL && (iE.pWidth == 0 || iE.pHeight == 0) ){
@@ -425,15 +371,12 @@ int UserInterface::ThreadAddPreviewImage(int threadIndex){
 		imageEntries.push_back((iE));
 	}
 	sceKernelUnlockMutex ( imageEntriesLock, 1 );
-	debugNetPrintf(DEBUG, "Estimated heap usage from images : %ld  T: %d \r\n" , estimatedTotalImageHeapUsage , threadIndex);
 	sceKernelLockMutex(allocateDataImageLock , 1  , NULL );
 	delete[] imageData;
 	sceKernelUnlockMutex ( allocateDataImageLock, 1 );
 	sceKernelLockMutex(changeIntThreadsRunningLock , 1  , NULL );
 	threadsRunning--;
 	sceKernelUnlockMutex ( changeIntThreadsRunningLock, 1 );
-	debugNetPrintf(DEBUG, "Remaining threads : %d \r\n" , threadsRunning);
-	debugNetPrintf(DEBUG, "Exiting ThreadAddPreviewImage\r\n");
 	sceKernelLockMutex(imageEntriesLock , 1  , NULL );
 	threadEntriesHelper[threadIndex].inUse = false;
 	sceKernelUnlockMutex ( imageEntriesLock, 1 );
@@ -567,9 +510,7 @@ void UserInterface::ShowImage(){
 				memset(imageDataFull, 0, sizeof(char)*(MAX_IMAGE_SIZE + 1));
 				unsigned long bytesDownloaded = 0;
 				if(fileExist){
-					debugNetPrintf(DEBUG, "File found : %s \r\n " , fileSaveName.c_str());
 					int fileHandle = sceIoOpen(fileSaveName.c_str() , SCE_O_RDONLY, 0777);
-					debugNetPrintf(DEBUG, "File handle : %d \r\n " , fileHandle);
 	
 					long fileSize = sceIoLseek(fileHandle, 0 , SCE_SEEK_END);
 					sceIoLseek(fileHandle, 0 , SCE_SEEK_SET);
@@ -580,25 +521,21 @@ void UserInterface::ShowImage(){
 					
 					bytesDownloaded = fileSize;
 				}else{
-					debugNetPrintf(DEBUG, "File NOT found : %s \r\n " , fileSaveName.c_str());
 					bytesDownloaded = downloadImage(imageEntries[i].fullURL.c_str() , imageDataFull);
 					
 				}
 				
 				if(bytesDownloaded <= 0){
-					debugNetPrintf(DEBUG, "Failed ! bytesDownloaded <= 0 \r\n ");
 					imageEntries[i].fullImage = NULL;
 					imageEntries[i].fullImageLoaded = false;
 					imageEntries[i].fullImageBytes = 0;
 				}else{
-					debugNetPrintf(DEBUG, "Loaded ! ! bytesDownloaded > 0 \r\n ");
 					imageEntries[i].fullImageBytes = bytesDownloaded;
 					bool isbmp = false;
 					bool ispng = false;
 					bool isjpg = false;
 					bool isgif87a = false;
 					bool isgif89a = false;
-					debugNetPrintf(DEBUG, "Find out what type \r\n ");
 					if( imageDataFull[0] == (char)0x42 ){
 						if( imageDataFull[1] == 0x4D ){
 							imageEntries[i].fullImage = vita2d_load_JPEG_buffer( imageDataFull , bytesDownloaded);
@@ -724,23 +661,17 @@ void UserInterface::ShowImage(){
 					
 					fileSaveName = "ux0:data/fApp/" + imageEntries[i].fullImageMD5 ;
 					if(ispng){
-						debugNetPrintf(DEBUG, "is png \r\n");
 						fileSaveName += ".png";
 					}else if(isbmp){
-						debugNetPrintf(DEBUG, "is bmp \r\n");
 						fileSaveName += ".bmp";
 					}else if(isjpg){
-						debugNetPrintf(DEBUG, "is jpeg \r\n");
 						fileSaveName += ".jpeg";
 					}else if(isgif87a){
-						debugNetPrintf(DEBUG, "is gif87a \r\n");
 						fileSaveName += ".gif";
 					}else if(isgif89a){
-						debugNetPrintf(DEBUG, "is gif89a \r\n");
 						fileSaveName += ".gif";
 					}else{
 						fileSaveName += ".unk";
-						debugNetPrintf(DEBUG, "is unknown \r\n");
 					}
 					if(!fileExist && imageEntries[i].fullImageLoaded){
 					
@@ -791,14 +722,12 @@ void UserInterface::ShowImage(){
 		}
 		sceKernelUnlockMutex ( imageEntriesVectorLock , 1 );
 	}
-	debugNetPrintf(DEBUG, "Estimated heap usage from images : %ld \r\n" , estimatedTotalImageHeapUsage);
 }
 
 void UserInterface::UnshowImage(){
 	if(isViewingImage){
 		if(isViewingGifImage == true){
 			myGifDisplayer.UnshowCurrentImage();
-			debugNetPrintf(DEBUG , "Unshown Gif\r\n");
 		}
 		
 		sceKernelLockMutex( imageEntriesVectorLock , 1 , NULL );
@@ -808,7 +737,6 @@ void UserInterface::UnshowImage(){
 				imageEntries[selectedImage].fullImageLoaded = false;
 				estimatedTotalImageHeapUsage -= imageEntries[selectedImage].fullImageBytes;
 				imageEntries[selectedImage].fullImageBytes = 0;
-				debugNetPrintf(DEBUG, "Estimated heap usage from images : %ld \r\n" , estimatedTotalImageHeapUsage);
 			}
 		}
 		sceKernelUnlockMutex(imageEntriesVectorLock , 1 );
